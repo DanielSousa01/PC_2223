@@ -4,15 +4,16 @@ import kotlin.concurrent.withLock
 import kotlin.time.Duration
 
 class MessageQueue<T>() {
+    data class Request(val nOfMessages: Int, val condition: Condition)
     private val lock = ReentrantLock()
     private val messageQueue = mutableListOf<T>()
-    private val consumeQueue = mutableListOf<Condition>()
+    private val consumeQueue = mutableListOf<Request>()
 
     fun enqueue(message: T): Unit = lock.withLock {
-        if (consumeQueue.isNotEmpty()) {
-            consumeQueue.removeAt(0).signal()
-        } else {
-            messageQueue.add(message)
+        messageQueue.add(message)
+
+        if (consumeQueue.isNotEmpty() && messageQueue.size >= consumeQueue.first().nOfMessages) {
+            consumeQueue.first().condition.signal()
         }
     }
 
@@ -27,29 +28,30 @@ class MessageQueue<T>() {
                 return resultList
             }
 
-            val consumerCondition = lock.newCondition()
-            consumeQueue.add(consumerCondition)
+            val request = Request(nOfMessages, lock.newCondition())
+            consumeQueue.add(request)
             var remainingNanos = timeout.inWholeNanoseconds
 
             while (true){
                 try {
-                    remainingNanos = consumerCondition.awaitNanos(remainingNanos)
+                    remainingNanos = request.condition.awaitNanos(remainingNanos)
                 } catch (error: InterruptedException) {
-                    consumeQueue.remove(consumerCondition)
-                    if (messageQueue[0] == consumerCondition) {
-                        if (messageQueue.size >= nOfMessages) {
+                    val isFirst = consumeQueue.first() == request
+                    consumeQueue.remove(request)
+
+                    if (isFirst) {
+                        return if (messageQueue.size >= nOfMessages) {
                             val resultList = messageQueue.subList(0, nOfMessages)
                             repeat(nOfMessages) {
                                 messageQueue.removeAt(0)
                             }
-
-                            return resultList
-
+                            resultList
                         } else {
                             Thread.currentThread().interrupt()
-                            return null
+                            null
                         }
                     }
+
                     throw error
                 }
 
@@ -58,12 +60,12 @@ class MessageQueue<T>() {
                     repeat(nOfMessages) {
                         messageQueue.removeAt(0)
                     }
-                    consumeQueue.remove(consumerCondition)
+                    consumeQueue.remove(request)
                     return resultList
                 }
 
                 if (remainingNanos <= 0) {
-                    consumeQueue.remove(consumerCondition)
+                    consumeQueue.remove(request)
                     return null
                 }
             }

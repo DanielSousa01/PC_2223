@@ -45,6 +45,7 @@ class MessageQueue<T>() {
                             repeat(nOfMessages) {
                                 messageQueue.removeAt(0)
                             }
+                            Thread.currentThread().interrupt()
                             resultList
                         } else {
                             Thread.currentThread().interrupt()

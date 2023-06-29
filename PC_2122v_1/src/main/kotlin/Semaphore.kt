@@ -32,6 +32,7 @@ class Semaphore(private val initialUnits: Int) {
                     }
                     if (units > 0) {
                         units -= 1
+                        Thread.currentThread().interrupt()
                         return true
                     }
                     throw error
@@ -69,6 +70,7 @@ class Semaphore(private val initialUnits: Int) {
                     remainingNanos = unitsAvailable.awaitNanos(remainingNanos)
                 } catch (error: InterruptedException) {
                     if (shuttingDown && units == initialUnits) {
+                        Thread.currentThread().interrupt()
                         return true
                     }
 

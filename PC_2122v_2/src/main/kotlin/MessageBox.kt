@@ -7,7 +7,7 @@ import kotlin.coroutines.suspendCoroutine
 class MessageBox<T> {
 
     private val lock = ReentrantLock()
-    private val waitingForMessageQueue = mutableListOf<Continuation<T>>()
+    private var waitingForMessageQueue = mutableListOf<Continuation<T>>()
     suspend fun waitForMessage(): T = suspendCoroutine<T> {continuation ->
         lock.withLock {
             waitingForMessageQueue.add(continuation)
@@ -21,6 +21,8 @@ class MessageBox<T> {
             for (waitingRequest in waitingForMessageQueue) {
                 waitingRequest.resume(message)
             }
+
+            waitingForMessageQueue = mutableListOf()
 
             return totalReceivedMessages
         }

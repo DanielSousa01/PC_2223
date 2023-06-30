@@ -7,7 +7,7 @@ class MessageQueue<T>() {
     private val lock = ReentrantLock()
 
     data class EnqueueRequest<T>(val message: T, val condition: Condition, var thread: Thread? = null)
-    data class DequeueRequest(val nOfMessages: Int, val condition: Condition)
+    data class DequeueRequest(val nOfMessages: Int, val condition: Condition, val thread: Thread)
 
     private val enqueueRequestQueue = mutableListOf<EnqueueRequest<T>>()
     private val dequeueRequestQueue = mutableListOf<DequeueRequest>()
@@ -19,7 +19,10 @@ class MessageQueue<T>() {
             enqueueRequestQueue.add(request)
 
             if (dequeueRequestQueue.isNotEmpty() && dequeueRequestQueue[0].nOfMessages <= enqueueRequestQueue.size) {
-                dequeueRequestQueue.removeAt(0).condition.signal()
+                val consumer = dequeueRequestQueue.removeAt(0)
+                consumer.condition.signal()
+                return consumer.thread
+
             }
 
             var remainingNanos = timeout.inWholeNanoseconds
@@ -57,7 +60,7 @@ class MessageQueue<T>() {
                 return resultList.map { request -> request.message }
             }
 
-            val request = DequeueRequest(nOfMessages, lock.newCondition())
+            val request = DequeueRequest(nOfMessages, lock.newCondition(), Thread.currentThread())
             dequeueRequestQueue.add(request)
             var remainingNanos = timeout.inWholeNanoseconds
             while (true) {

@@ -17,6 +17,9 @@ class Semaphore(private val initialUnits: Int) {
     @Throws(InterruptedException::class, RejectedExecutionException::class)
     fun acquire(timeout: Duration): Boolean {
         lock.withLock {
+            if (shuttingDown) {
+                throw RejectedExecutionException()
+            }
             if (units > 0) {
                 units -= 1
                 return true
@@ -32,6 +35,9 @@ class Semaphore(private val initialUnits: Int) {
                     }
                     if (units > 0) {
                         units -= 1
+                        if (units > 0) {
+                            unitsAvailable.signal()
+                        }
                         Thread.currentThread().interrupt()
                         return true
                     }
@@ -43,6 +49,9 @@ class Semaphore(private val initialUnits: Int) {
                 }
                 if (units > 0) {
                     units -= 1
+                    if (units > 0) {
+                        unitsAvailable.signal()
+                    }
                     return true
                 }
 

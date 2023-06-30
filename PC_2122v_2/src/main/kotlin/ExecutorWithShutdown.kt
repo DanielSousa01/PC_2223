@@ -47,8 +47,8 @@ class ExecutorWithShutdown(private val executor: Executor) {
             if (terminatedCommands.get() == totalCommands && shutdown)
                 return true
 
+            var remainingNanos = timeout.inWholeNanoseconds
             while (true) {
-                var remainingNanos = timeout.inWholeNanoseconds
                 try {
                     remainingNanos = terminationCondition.awaitNanos(remainingNanos)
                 } catch (error: InterruptedException) {

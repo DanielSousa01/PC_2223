@@ -1,19 +1,14 @@
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicReference
 
-suspend fun <A,B,C> run(f0: suspend ()-> A, f1: suspend ()-> B, f2: suspend (A, B)->C): C {
-    val result = AtomicReference<C?>(null)
+suspend fun <A,B,C> run(f0: suspend ()-> A, f1: suspend ()-> B, f2: suspend (A, B)->C): C = coroutineScope {
+    val jobF0 = async { f0() }
+    val jobF1 = async { f1() }
 
-    coroutineScope {
-        launch {
-            val valueF0 = f0()
-            val valueF1 = f1()
-            result.set(f2(valueF0, valueF1))
-        }
-    }
+    val a = jobF0.await()
+    val b = jobF1.await()
 
-    return result.get() ?: throw IllegalStateException("No coroutine finished successfully.")
+    return@coroutineScope f2(a, b)
 }
